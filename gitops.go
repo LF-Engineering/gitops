@@ -1,11 +1,14 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	"net/url"
 	"os"
+	"os/exec"
 	"path"
+	"path/filepath"
 	"strings"
 
 	jsoniter "github.com/json-iterator/go"
@@ -178,7 +181,138 @@ func (g *gitOps) loadCache() {
 			g.writeJSONFile(g.cache, g.getCachePath(), g.cacheFileName)
 		}
 	}
-	fmt.Printf("%+v\n", g.cache)
+	// fmt.Printf("%s: %+v\n", path, g.cache)
+}
+
+func (g *gitOps) repoPath() string {
+	if g.followHierarchy {
+		return path.Join(g.basePath, g.orgName()+"/"+g.repoName())
+	}
+	return path.Join(g.basePath, g.orgName()+"-"+g.repoName())
+}
+
+func (g *gitOps) clone() {
+	args := []string{"git", "clone", g.gitURL, g.repoPath()}
+	cmd := exec.Command(args[0], args[1:]...)
+	cmd.Env = append(os.Environ(), "LANG=C", "HOME="+os.Getenv("HOME"))
+	err := cmd.Run()
+	if err != nil {
+		fmt.Printf("error executing %s command: %+v\n", strings.Join(args, " "), err)
+		g.errored = true
+	}
+	// fmt.Printf("executed %+v\n", args)
+}
+
+func (g *gitOps) fetch() {
+	path, err := filepath.Abs(g.repoPath())
+	if err != nil {
+		fmt.Printf("error absolute path %s: %+v\n", path, err)
+		return
+	}
+	err = os.Chdir(path)
+	if err != nil {
+		fmt.Printf("error chdir to %s: %+v\n", path, err)
+		return
+	}
+	args := []string{"git", "fetch"}
+	cmd := exec.Command(args[0], args[1:]...)
+	env := append(os.Environ(), "LANG=C", "HOME="+os.Getenv("HOME"))
+	cmd.Env = env
+	err = cmd.Run()
+	if err != nil {
+		fmt.Printf("error executing %s command: %+v\n", strings.Join(args, " "), err)
+		g.errored = true
+	}
+	// fmt.Printf("executed %+v\n", args)
+	args = append(args, "-p")
+	cmd = exec.Command(args[0], args[1:]...)
+	cmd.Env = env
+	err = cmd.Run()
+	if err != nil {
+		fmt.Printf("error executing %s command: %+v\n", strings.Join(args, " "), err)
+		g.errored = true
+	}
+	// fmt.Printf("executed %+v\n", args)
+}
+
+func (g *gitOps) pull() bool {
+	path, err := filepath.Abs(g.repoPath())
+	if err != nil {
+		fmt.Printf("error absolute path %s: %+v\n", path, err)
+		return false
+	}
+	err = os.Chdir(path)
+	if err != nil {
+		fmt.Printf("error chdir to %s: %+v\n", path, err)
+		return false
+	}
+	var (
+		status bool
+		outb   bytes.Buffer
+		branch string
+	)
+	args := []string{"git", "remote", "set-head", "origin", "--auto"}
+	cmd := exec.Command(args[0], args[1:]...)
+	env := append(os.Environ(), "LANG=C", "HOME="+os.Getenv("HOME"))
+	cmd.Env = env
+	err = cmd.Run()
+	if err != nil {
+		fmt.Printf("error executing %s command: %+v\n", strings.Join(args, " "), err)
+		g.errored = true
+	}
+	// fmt.Printf("executed %+v\n", args)
+	args = []string{"git", "symbolic-ref", "--short", "refs/remotes/origin/HEAD"}
+	cmd = exec.Command(args[0], args[1:]...)
+	cmd.Env = env
+	cmd.Stdout = &outb
+	err = cmd.Run()
+	if err != nil {
+		fmt.Printf("error executing %s command: %+v\n", strings.Join(args, " "), err)
+		g.errored = true
+	} else {
+		result := outb.String()
+		branch = strings.TrimSpace(strings.Replace(result, "origin/", "", 1))
+	}
+	// fmt.Printf("executed %+v, got %s branch\n", args, branch)
+	if branch != "" {
+		args = []string{"git", "checkout", branch}
+		cmd = exec.Command(args[0], args[1:]...)
+		cmd.Env = env
+		cmd.Stdout = nil
+		err = cmd.Run()
+		if err != nil {
+			fmt.Printf("error executing %s command: %+v\n", strings.Join(args, " "), err)
+			g.errored = true
+		}
+		// fmt.Printf("executed %+v\n", args)
+		var ob bytes.Buffer
+		args = []string{"git", "pull", "origin", branch}
+		cmd = exec.Command(args[0], args[1:]...)
+		cmd.Env = env
+		cmd.Stdout = &ob
+		err = cmd.Run()
+		if err != nil {
+			fmt.Printf("error executing %s command: %+v\n", strings.Join(args, " "), err)
+			g.errored = true
+		} else {
+			result := ob.String()
+			if strings.Contains(result, "Already up to date.") {
+				status = true
+			}
+			// fmt.Printf("executed %+v, got %s -> %v\n", args, result, status)
+		}
+	}
+	return status
+}
+
+func (g *gitOps) load() {
+	_, err := os.Stat(g.repoPath())
+	if os.IsNotExist(err) {
+		g.clone()
+	} else {
+		g.fetch()
+		g.upToDate = g.pull()
+	}
 }
 
 func main() {
@@ -189,4 +323,5 @@ func main() {
 	gitops := gitOps{}
 	gitops.init(os.Args[1])
 	gitops.loadCache()
+	gitops.load()
 }

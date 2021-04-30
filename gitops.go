@@ -25,6 +25,7 @@ type gitOps struct {
 	cache           map[string]interface{}
 	gitURL          string
 	cacheFileName   string
+	verbose         bool
 }
 
 func (g *gitOps) init(url string) {
@@ -38,6 +39,7 @@ func (g *gitOps) init(url string) {
 	g.cache = make(map[string]interface{})
 	g.gitURL = g.getProcessedURI(url)
 	g.cacheFileName = "stats.json"
+	g.verbose = os.Getenv("GITOPS_VERBOSE") != ""
 }
 
 func (g *gitOps) getProcessedURI(uri string) string {
@@ -183,7 +185,9 @@ func (g *gitOps) loadCache() {
 			g.writeJSONFile(g.cache, g.getCachePath(), g.cacheFileName)
 		}
 	}
-	// fmt.Printf("%s: %+v\n", path, g.cache)
+	if g.verbose {
+		fmt.Printf("%s: %+v\n", path, g.cache)
+	}
 }
 
 func (g *gitOps) repoPath() string {
@@ -202,7 +206,9 @@ func (g *gitOps) clone() {
 		fmt.Printf("error executing %s command: %+v\n", strings.Join(args, " "), err)
 		g.errored = true
 	}
-	// fmt.Printf("executed %+v\n", args)
+	if g.verbose {
+		fmt.Printf("executed %+v\n", args)
+	}
 }
 
 func (g *gitOps) clean(force bool) {
@@ -216,8 +222,10 @@ func (g *gitOps) clean(force bool) {
 		if err != nil {
 			fmt.Printf("error executing %s command: %+v\n", strings.Join(args, " "), err)
 		}
+		if g.verbose {
+			fmt.Printf("executed %+v\n", args)
+		}
 	}
-	// fmt.Printf("executed %+v\n", args)
 }
 
 func (g *gitOps) fetch() {
@@ -240,7 +248,9 @@ func (g *gitOps) fetch() {
 		fmt.Printf("error executing %s command: %+v\n", strings.Join(args, " "), err)
 		g.errored = true
 	}
-	// fmt.Printf("executed %+v\n", args)
+	if g.verbose {
+		fmt.Printf("executed %+v\n", args)
+	}
 	args = append(args, "-p")
 	cmd = exec.Command(args[0], args[1:]...)
 	cmd.Env = env
@@ -249,7 +259,9 @@ func (g *gitOps) fetch() {
 		fmt.Printf("error executing %s command: %+v\n", strings.Join(args, " "), err)
 		g.errored = true
 	}
-	// fmt.Printf("executed %+v\n", args)
+	if g.verbose {
+		fmt.Printf("executed %+v\n", args)
+	}
 }
 
 func (g *gitOps) pull() bool {
@@ -277,7 +289,9 @@ func (g *gitOps) pull() bool {
 		fmt.Printf("error executing %s command: %+v\n", strings.Join(args, " "), err)
 		g.errored = true
 	}
-	// fmt.Printf("executed %+v\n", args)
+	if g.verbose {
+		fmt.Printf("executed %+v\n", args)
+	}
 	args = []string{"git", "symbolic-ref", "--short", "refs/remotes/origin/HEAD"}
 	cmd = exec.Command(args[0], args[1:]...)
 	cmd.Env = env
@@ -290,7 +304,9 @@ func (g *gitOps) pull() bool {
 		result := outb.String()
 		branch = strings.TrimSpace(strings.Replace(result, "origin/", "", 1))
 	}
-	// fmt.Printf("executed %+v, got %s branch\n", args, branch)
+	if g.verbose {
+		fmt.Printf("executed %+v, got %s branch\n", args, branch)
+	}
 	if branch != "" {
 		args = []string{"git", "checkout", branch}
 		cmd = exec.Command(args[0], args[1:]...)
@@ -301,7 +317,9 @@ func (g *gitOps) pull() bool {
 			fmt.Printf("error executing %s command: %+v\n", strings.Join(args, " "), err)
 			g.errored = true
 		}
-		// fmt.Printf("executed %+v\n", args)
+		if g.verbose {
+			fmt.Printf("executed %+v\n", args)
+		}
 		var ob bytes.Buffer
 		args = []string{"git", "pull", "origin", branch}
 		cmd = exec.Command(args[0], args[1:]...)
@@ -316,7 +334,9 @@ func (g *gitOps) pull() bool {
 			if strings.Contains(result, "Already up to date.") {
 				status = true
 			}
-			// fmt.Printf("executed %+v, got %s -> %v\n", args, result, status)
+			if g.verbose {
+				fmt.Printf("executed %+v, got %s -> %v\n", args, result, status)
+			}
 		}
 	}
 	return status
@@ -324,9 +344,11 @@ func (g *gitOps) pull() bool {
 
 func (g *gitOps) loc(value string, force bool) int64 {
 	var locValue int64
-	//defer func() {
-	//	fmt.Printf("loc %s ---> %d\n", value, locValue)
-	//}()
+	if g.verbose {
+		defer func() {
+			fmt.Printf("loc %s ---> %d\n", value, locValue)
+		}()
+	}
 	if strings.Contains(value, "SUM:") || force {
 		ary := strings.Split(value, "\n")
 		lAry := len(ary)
@@ -340,9 +362,11 @@ func (g *gitOps) loc(value string, force bool) int64 {
 
 func (g *gitOps) pls(value string, force bool) []map[string]interface{} {
 	var stats []map[string]interface{}
-	//defer func() {
-	//	fmt.Printf("pls %s ---> %+v\n", value, stats)
-	//}()
+	if g.verbose {
+		defer func() {
+			fmt.Printf("pls %s ---> %+v\n", value, stats)
+		}()
+	}
 	if strings.Contains(value, "SUM:") || force {
 		lanSmryLst := strings.Split(value, "\n")
 		nLanSmryLst := len(lanSmryLst)
@@ -385,7 +409,9 @@ func (g *gitOps) stats(path string) string {
 		fmt.Printf("error executing %s command: %+v\n", strings.Join(args, " "), err)
 	} else {
 		result = ob.String()
-		// fmt.Printf("executed %+v, got %s -> %v\n", args, result, status)
+		if g.verbose {
+			fmt.Printf("executed %+v, got %s\n", args, result)
+		}
 	}
 	return result
 }
@@ -533,5 +559,7 @@ func main() {
 	obj := map[string]interface{}{"loc": loc, "pls": pls}
 	data, _ := jsoniter.Marshal(obj)
 	fmt.Printf("%s\n", string(data))
-	//fmt.Printf("%s: %s\n", gitops.repoPath(), string(data))
+	if gitops.verbose {
+		fmt.Printf("repo path: %s\ncache path: %s\n", gitops.repoPath(), gitops.getCachePath())
+	}
 }

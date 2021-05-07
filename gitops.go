@@ -370,7 +370,7 @@ func (g *gitOps) pls(value string) []map[string]interface{} {
 	if strings.Contains(value, "SUM:") || strings.Contains(value, "Language") {
 		lanSmryLst := strings.Split(value, "\n")
 		nLanSmryLst := len(lanSmryLst)
-		var hasLanguage bool = false
+		hasLanguage := false
 		for i := 0; i <= nLanSmryLst-1; i++ {
 			smry := lanSmryLst[i]
 			if strings.HasPrefix(smry, "---") {

@@ -371,7 +371,7 @@ func (g *gitOps) pls(value string) []map[string]interface{} {
 		lanSmryLst := strings.Split(value, "\n")
 		nLanSmryLst := len(lanSmryLst)
 		hasLanguage := false
-		for i := 0; i <= nLanSmryLst-1; i++ {
+		for i := 0; i < nLanSmryLst; i++ {
 			smry := lanSmryLst[i]
 			if strings.HasPrefix(smry, "---") {
 				continue

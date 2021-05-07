@@ -342,14 +342,14 @@ func (g *gitOps) pull() bool {
 	return status
 }
 
-func (g *gitOps) loc(value string, force bool) int64 {
+func (g *gitOps) loc(value string) int64 {
 	var locValue int64
 	if g.verbose {
 		defer func() {
 			fmt.Printf("loc %s ---> %d\n", value, locValue)
 		}()
 	}
-	if strings.Contains(value, "SUM:") || force {
+	if strings.Contains(value, "SUM:") || strings.Contains(value, "Language") {
 		ary := strings.Split(value, "\n")
 		lAry := len(ary)
 		if lAry >= 3 {
@@ -360,35 +360,36 @@ func (g *gitOps) loc(value string, force bool) int64 {
 	return locValue
 }
 
-func (g *gitOps) pls(value string, force bool) []map[string]interface{} {
+func (g *gitOps) pls(value string) []map[string]interface{} {
 	var stats []map[string]interface{}
 	if g.verbose {
 		defer func() {
 			fmt.Printf("pls %s ---> %+v\n", value, stats)
 		}()
 	}
-	if strings.Contains(value, "SUM:") || force {
+	if strings.Contains(value, "SUM:") || strings.Contains(value, "Language") {
 		lanSmryLst := strings.Split(value, "\n")
 		nLanSmryLst := len(lanSmryLst)
-		for i := nLanSmryLst - 1; i >= 0; i-- {
+		hasLanguage := false
+		for i := 0; i <= nLanSmryLst-1; i++ {
 			smry := lanSmryLst[i]
 			if strings.HasPrefix(smry, "---") {
 				continue
 			}
 			if strings.HasPrefix(smry, "Language") {
-				break
-			}
-			smryResult := strings.Fields(smry)
-			if len(smryResult) < 5 {
+				hasLanguage = true
 				continue
 			}
-			stats = append(stats, map[string]interface{}{
-				"language": strings.Replace(smryResult[0], "SUM:", "Total", -1),
-				"files":    smryResult[1],
-				"blank":    smryResult[2],
-				"comment":  smryResult[3],
-				"code":     smryResult[4],
-			})
+			if hasLanguage {
+				smryResult := strings.Fields(smry)
+				stats = append(stats, map[string]interface{}{
+					"language": strings.Replace(smryResult[0], "SUM:", "Total", -1),
+					"files":    smryResult[1],
+					"blank":    smryResult[2],
+					"comment":  smryResult[3],
+					"code":     smryResult[4],
+				})
+			}
 		}
 	}
 	return stats
@@ -456,12 +457,8 @@ func (g *gitOps) getStats() (int64, []map[string]interface{}) {
 		cachePLS = append(cachePLS, iface)
 	}
 	result := g.stats(g.repoPath())
-	loc = g.loc(result, false)
-	pls = g.pls(result, false)
-	if loc == 0 && len(pls) == 0 {
-		loc = g.loc(result, true)
-		pls = g.pls(result, true)
-	}
+	loc = g.loc(result)
+	pls = g.pls(result)
 	if loc == 0 {
 		loc = cacheLOC
 		pls = cachePLS

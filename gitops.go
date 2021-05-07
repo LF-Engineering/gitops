@@ -382,6 +382,9 @@ func (g *gitOps) pls(value string) []map[string]interface{} {
 			}
 			if hasLanguage {
 				smryResult := strings.Fields(smry)
+				if len(smryResult) < 5 {
+					continue
+				}
 				stats = append(stats, map[string]interface{}{
 					"language": strings.Replace(smryResult[0], "SUM:", "Total", -1),
 					"files":    smryResult[1],
@@ -552,6 +555,9 @@ func main() {
 	}
 	if gitops.isErrored() {
 		os.Exit(1)
+	}
+	if len(pls) == 0 {
+		pls = make([]map[string]interface{}, 0)
 	}
 	obj := map[string]interface{}{"loc": loc, "pls": pls}
 	data, _ := jsoniter.Marshal(obj)

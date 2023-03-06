@@ -1,6 +1,6 @@
 # gitops
 
-Pront cloc statistics for a given repo
+Print cloc statistics for a given repo
 
 # Running
 
